@@ -1,0 +1,15 @@
+[output]
+directory = "target/criterion"
+
+[plotting]
+backend = "gnuplot"  # or "plotters" if available
+
+[measurement]
+warm_up_time = "3s"
+measurement_time = "5s"
+sample_size = 100
+
+[analysis]
+confidence_level = 0.95
+significance_level = 0.05
+noise_threshold = 0.01
