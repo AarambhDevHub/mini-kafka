@@ -1,179 +1,82 @@
-name: 🚀 Mini Kafka Benchmarks
+name: 🚀 Mini Kafka Benchmarks (File Only)
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch: # Allow manual runs
+  workflow_dispatch:
 
 jobs:
   benchmark:
-    name: 📊 Performance Benchmarks
+    name: 📊 Run Benchmarks
     runs-on: ubuntu-latest
     
     steps:
-    - name: 📚 Checkout repository
+    - name: 📚 Checkout
       uses: actions/checkout@v4
       
-    - name: 🦀 Install Rust toolchain
+    - name: 🦀 Setup Rust
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
         override: true
         
-    - name: 📦 Cache Cargo dependencies
+    - name: 📦 Cache dependencies
       uses: actions/cache@v3
       with:
         path: |
           ~/.cargo/registry
           ~/.cargo/git
           target
-        key: ${{ runner.os }}-cargo-bench-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
         
-    - name: 🔧 Build project first
-      run: cargo build --release
-        
-    - name: 📊 Run benchmarks and save results
+    - name: ⚡ Run benchmarks
       run: |
         # Create results directory
         mkdir -p benchmark_results
         
-        # Run benchmarks with proper output formatting
-        echo "Running Mini Kafka benchmarks..."
-        cargo bench -- --output-format json | grep -E '^{.*}$' > benchmark_results/criterion_output.json || true
+        # Run benchmarks and save results
+        echo "🚀 Running Mini Kafka benchmarks..."
+        cargo bench 2>&1 | tee benchmark_results/benchmark_output.txt
         
-        # Also save human-readable results
-        cargo bench 2>&1 | tee benchmark_results/benchmark_readable.txt
+        # Create timestamp and metadata
+        echo "# Mini Kafka Benchmark Results" > benchmark_results/SUMMARY.md
+        echo "Generated: $(date)" >> benchmark_results/SUMMARY.md
+        echo "Commit: ${{ github.sha }}" >> benchmark_results/SUMMARY.md
+        echo "Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> benchmark_results/SUMMARY.md
+        echo "" >> benchmark_results/SUMMARY.md
+        echo '```
+        tail -50 benchmark_results/benchmark_output.txt >> benchmark_results/SUMMARY.md
+        echo '```' >> benchmark_results/SUMMARY.md
         
-        # Create a properly formatted results file for benchmark-action
-        echo "Creating formatted benchmark results..."
-        cat > benchmark_results/benchmark_results.json << 'EOF'
-        [
-        EOF
-        
-        # Parse Criterion output and convert to benchmark-action format
-        if [ -s benchmark_results/criterion_output.json ]; then
-          python3 << 'PYTHON_SCRIPT'
-        import json
-        import re
-        import sys
-        
-        # Read the human-readable benchmark output
-        try:
-            with open('benchmark_results/benchmark_readable.txt', 'r') as f:
-                content = f.read()
-            
-            results = []
-            
-            # Parse Criterion output for benchmark results
-            lines = content.split('\n')
-            for line in lines:
-                # Look for benchmark result lines
-                if 'time:' in line and '[' in line and ']' in line:
-                    try:
-                        # Extract benchmark name and timing
-                        if '/' in line:
-                            name_part = line.split()[0]
-                        else:
-                            name_part = line.split('time:')[0].strip()
-                        
-                        # Extract timing information
-                        time_match = re.search(r'time:\s*\[([0-9.]+)\s*([a-zA-Zμµ]+)s?\s+([0-9.]+)\s*([a-zA-Zμµ]+)s?\s+([0-9.]+)\s*([a-zA-Zμµ]+)s?\]', line)
-                        if time_match:
-                            # Convert to nanoseconds for consistency
-                            def to_nanoseconds(value, unit):
-                                value = float(value)
-                                unit = unit.lower().replace('μ', 'u').replace('µ', 'u')
-                                if unit == 'ns':
-                                    return value
-                                elif unit == 'us':
-                                    return value * 1000
-                                elif unit == 'ms':
-                                    return value * 1000000
-                                elif unit == 's':
-                                    return value * 1000000000
-                                return value
-                            
-                            mean_ns = to_nanoseconds(time_match.group(3), time_match.group(4))
-                            
-                            result = {
-                                "name": name_part,
-                                "unit": "ns/iter",
-                                "value": mean_ns
-                            }
-                            results.append(result)
-                    except:
-                        continue
-            
-            # Write results to JSON file
-            if results:
-                with open('benchmark_results/benchmark_results.json', 'w') as f:
-                    json.dump(results, f, indent=2)
-                print(f"Generated {len(results)} benchmark results")
-            else:
-                print("No benchmark results found in output")
-                # Create a dummy result to avoid empty file error
-                dummy_result = [{
-                    "name": "dummy_benchmark",
-                    "unit": "ns/iter", 
-                    "value": 1000
-                }]
-                with open('benchmark_results/benchmark_results.json', 'w') as f:
-                    json.dump(dummy_result, f, indent=2)
-                    
-        except Exception as e:
-            print(f"Error parsing benchmark results: {e}")
-            # Create a dummy result to avoid errors
-            dummy_result = [{
-                "name": "parsing_failed",
-                "unit": "ns/iter",
-                "value": 1000
-            }]
-            with open('benchmark_results/benchmark_results.json', 'w') as f:
-                json.dump(dummy_result, f, indent=2)
-        PYTHON_SCRIPT
-        else
-          echo "No Criterion output found, creating dummy result..."
-          cat > benchmark_results/benchmark_results.json << 'EOF'
-        [
-          {
-            "name": "no_benchmarks_found", 
-            "unit": "ns/iter",
-            "value": 1000
-          }
-        ]
-        EOF
+        # Copy Criterion HTML reports if available
+        if [ -d "target/criterion" ]; then
+          cp -r target/criterion benchmark_results/html_reports/
+          echo "📊 Criterion HTML reports included"
         fi
         
-        # Show what we generated
-        echo "Generated benchmark results:"
-        cat benchmark_results/benchmark_results.json
-        
-    - name: 📈 Store benchmark result with dashboard
-      uses: benchmark-action/github-action-benchmark@v1
-      with:
-        name: Mini Kafka Performance
-        tool: 'customSmallerIsBetter'  # Use custom tool for our JSON format
-        output-file-path: benchmark_results/benchmark_results.json
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        auto-push: true
-        alert-threshold: '150%'
-        comment-on-alert: true
-        fail-on-alert: false
-        
-    - name: 📁 Upload all benchmark artifacts
+    - name: 📁 Upload benchmark results
       uses: actions/upload-artifact@v4
       with:
-        name: mini-kafka-benchmark-results-${{ github.run_number }}
-        path: |
-          benchmark_results/
-          target/criterion/
+        name: mini-kafka-benchmarks-${{ github.run_number }}
+        path: benchmark_results/
         retention-days: 90
         
-    - name: 📊 Upload Criterion HTML reports
-      uses: actions/upload-artifact@v4
+    - name: 📝 Comment on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
       with:
-        name: criterion-html-reports-${{ github.run_number }}
-        path: target/criterion/
-        retention-days: 30
+        script: |
+          const fs = require('fs');
+          try {
+            const summary = fs.readFileSync('benchmark_results/SUMMARY.md', 'utf8');
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 📊 Mini Kafka Benchmark Results\n\n${summary}\n\n**📁 Download:** [Full benchmark results](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`
+            });
+          } catch (error) {
+            console.log('Could not post comment:', error);
+          }
