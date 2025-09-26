@@ -38,7 +38,7 @@ A lightweight Kafka-inspired distributed message queue and pub/sub system built 
 ### Clone and Build
 
 ```bash
-git clone https://github.com/yourusername/mini-kafka.git
+git clone https://github.com/AarambhDevHub/mini-kafka.git
 cd mini-kafka
 cargo build --release
 ```
@@ -574,6 +574,13 @@ We welcome contributions! Here's how to get started:
 ## 📜 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## ☕ Support & Community
+
+If you find Ignitia helpful, consider supporting the project:
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/aarambhdevhub)
+
 
 ## 🙏 Acknowledgments
 
